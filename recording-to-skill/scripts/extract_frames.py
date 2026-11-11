@@ -22,6 +22,7 @@ from pathlib import Path
 PROBE_TIMEOUT = 300  # seconds; listing packets of a long recording
 FRAME_TIMEOUT = 120  # seconds per extracted frame
 SEEK_EPS = 0.001  # seek just before the frame so float rounding never skips it
+NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)  # Windows GUI callers: no console flash per call
 INSTALL_HINT = (
     "Install FFmpeg (it includes ffprobe), make sure both are on PATH, open a new terminal, then retry:\n"
     "  Windows: winget install --id Gyan.FFmpeg -e\n"
@@ -38,7 +39,8 @@ class Fail(Exception):
 
 def run(cmd, timeout):
     try:
-        return subprocess.run(cmd, capture_output=True, encoding="utf-8", errors="replace", timeout=timeout)
+        return subprocess.run(cmd, capture_output=True, encoding="utf-8", errors="replace", timeout=timeout,
+                              creationflags=NO_WINDOW)
     except subprocess.TimeoutExpired:
         raise Fail(f"{Path(cmd[0]).stem} timed out after {timeout}s")
 

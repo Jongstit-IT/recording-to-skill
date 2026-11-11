@@ -14,15 +14,17 @@
 
 ## วิธีใช้
 
-1. **อัด:** เลือกจอและ AI แล้วกดปุ่มแดง (หรือ `Ctrl+Alt+R`) ทำงานตามปกติจนเสร็จ แล้วกดหยุด ระหว่างอัดกด `Ctrl+Alt+P` เพื่อพักได้
+1. **อัด:** เลือกจอ (จอที่เลือกจะกะพริบกรอบแดง) และ AI แล้วกดปุ่มแดง (หรือ `Ctrl+Alt+R`) ทำงานตามปกติจนเสร็จ แล้วกดหยุด ระหว่างอัดกด `Ctrl+Alt+P` เพื่อพักได้
+   - ระหว่างอัดมีกรอบแดงรอบจอที่กำลังอัด (สีเหลือง = พักอยู่) กรอบนี้ไม่ติดไปในวิดีโอ
 2. **ตรวจภาพ:** แอปตัดภาพก่อนคลิกแต่ละครั้ง (มีกรอบแดงตรงจุดที่คลิก) ตอนสลับหน้าต่าง และช่วงที่ว่างนาน ติ๊กภาพที่มีข้อมูลลับออก แล้วพิมพ์เป้าหมายของงาน
 3. **วิเคราะห์:** AI ดูภาพแล้วสรุปเป็น step แก้ เรียงลำดับใหม่ เพิ่ม หรือลบได้ และบันทึกอัตโนมัติ
 4. **สร้าง skill:** AI เขียน skill ที่ใช้ซ้ำได้ (input, ขั้นตอน, เครื่องมือ, กรณีผิดพลาด) แก้ในการ์ดได้ทุกช่อง
 5. **Export:** เลือกโฟลเดอร์ แอปจะสร้าง `<ชื่อ-skill>/SKILL.md` + `analysis.md` จากนั้นคัดลอกทั้งโฟลเดอร์ไปที่ `.claude/skills/` (Claude Code) หรือ `.agents/skills/` (Codex)
 
-AI ใช้เวลาหลายนาทีและกดยกเลิกได้ จากการทดสอบ 24 ภาพ:
-- วิเคราะห์: Claude ประมาณ 3 นาที, Codex ประมาณ 2 นาที
-- สร้าง skill: อีก 2–4 นาที
+ระหว่างรอ AI กดยกเลิกได้ จากการทดสอบ 24 ภาพ (ทดสอบครั้งเดียว เวลาจริงขึ้นกับงานและเครือข่าย):
+- วิเคราะห์: Claude ประมาณ 30 วินาที, Codex ประมาณ 30–40 วินาที
+- สร้าง skill: อีกประมาณ 30–60 วินาที
+- Claude ใช้ effort ระดับ medium เสมอ ส่วน Codex ใช้ `service_tier` ตามที่ตั้งไว้ใน `~/.codex/config.toml` (ถ้าตั้ง `service_tier = "fast"` ไว้ จะเร็วขึ้นประมาณ 1 ใน 3)
 
 ## ความเป็นส่วนตัว
 
@@ -72,7 +74,7 @@ Record yourself doing a task once; an AI turns it into a `SKILL.md` that Claude 
 - **Download** `RecordingToSkill.exe` from [Releases](https://github.com/Jongstit-IT/recording-to-skill/releases/latest) (Windows x64, portable; tested on Windows 11 only). It is unsigned: on SmartScreen choose *More info → Run anyway*.
 - **Requires** Claude Code or OpenAI Codex CLI, installed and signed in. The app runs them headless with your existing login; no API keys.
 - **Flow:**
-  1. Record (`Ctrl+Alt+R`, pause with `Ctrl+Alt+P`).
+  1. Record (`Ctrl+Alt+R`, pause with `Ctrl+Alt+P`). A red frame marks the monitor being recorded (amber while paused); it is not captured in the video.
   2. Review the extracted frames and untick anything sensitive.
   3. Analyze, then edit, reorder, add or delete steps.
   4. Create the skill and edit its cards.

@@ -104,7 +104,8 @@ class Recorder:
                "-offset_x", str(m["left"]), "-offset_y", str(m["top"]),
                "-video_size", f"{m['width']}x{m['height']}", "-i", "desktop",
                "-frames:v", str(MAX_SECONDS * FPS),  # hard cap even if the app never says stop
-               "-c:v", "libx264", "-preset", "ultrafast", "-crf", "28", "-pix_fmt", "yuv420p", str(seg)]
+               "-c:v", "libx264", "-preset", "ultrafast", "-crf", "28", "-g", str(FPS * 2),  # keyframe every 2 s: fast seeks
+               "-pix_fmt", "yuv420p", str(seg)]
         self.proc = subprocess.Popen(cmd, stdin=subprocess.PIPE, stderr=subprocess.PIPE,
                                      creationflags=CREATE_NO_WINDOW)
         die_with_app(self.proc)

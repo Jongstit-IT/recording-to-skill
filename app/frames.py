@@ -1,6 +1,7 @@
 """Pick evidence frames from recorded activity and build the outbox the AI may see."""
 import bisect
 import shutil
+from concurrent.futures import ThreadPoolExecutor, as_completed
 import sys
 from pathlib import Path
 
@@ -61,8 +62,8 @@ def plan(events, timing, monitor, duration, cap=40, gap=8.0):
     return kept
 
 
-def extract(session_dir, planned):
-    """Write frames/ PNGs for the planned items; returns frame records."""
+def extract(session_dir, planned, on_progress=None):
+    """Write frames/ PNGs for the planned items; returns frame records. on_progress(done, total)."""
     video = Path(session_dir) / "video.mp4"
     out = Path(session_dir) / "frames"
     if out.exists():
@@ -70,7 +71,7 @@ def extract(session_dir, planned):
     out.mkdir()
     info = ef.probe(tool("ffprobe"), video)
     times, width = info["times"], (MAX_WIDTH if info["width"] > MAX_WIDTH else None)
-    frames, used = [], set()
+    frames, jobs, used = [], [], set()
     for item in planned:
         actual = times[max(bisect.bisect_right(times, item["t"] + 1e-6) - 1, 0)]
         if actual in used and item["kind"] != "click":
@@ -81,9 +82,16 @@ def extract(session_dir, planned):
         if item.get("click"):
             x, y = item["click"]
             marker = f"drawbox=x={x - 22}:y={y - 22}:w=44:h=44:color=red@0.9:t=4"
-        ef.extract(tool("ffmpeg"), video, info["stream"], actual, out / name, width, marker)
+        jobs.append((actual, out / name, marker))
         frames.append({"file": name, "t": round(actual, 2), "kind": item["kind"], "title": item.get("title", ""),
                        "app": item.get("app", ""), "excluded": False})
+    with ThreadPoolExecutor(4) as pool:  # one ffmpeg per frame; 4 at a time is ~3x faster than one by one
+        futures = [pool.submit(ef.extract, tool("ffmpeg"), video, info["stream"], t, dest, width, marker)
+                   for t, dest, marker in jobs]
+        for done, future in enumerate(as_completed(futures), 1):
+            future.result()
+            if on_progress:
+                on_progress(done, len(futures))
     return frames
 
 

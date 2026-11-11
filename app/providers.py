@@ -7,11 +7,13 @@ npm .cmd shims are resolved to the real exe/js so arguments never pass through c
 """
 import base64
 import json
+import os
 import re
 import shutil
 import subprocess
 import threading
 import time
+import tomllib
 from pathlib import Path
 
 from recorder import die_with_app
@@ -59,6 +61,17 @@ def detect():
     return out
 
 
+def codex_service_tier():
+    """Speed tier the user chose in their own Codex config (e.g. "fast"), else "".
+    --ignore-user-config drops the rest of that file (MCP servers, tools), so this one value is carried over."""
+    path = Path(os.environ.get("CODEX_HOME") or Path.home() / ".codex") / "config.toml"
+    try:
+        tier = tomllib.loads(path.read_text(encoding="utf-8")).get("service_tier", "")
+    except (OSError, ValueError):
+        return ""
+    return tier if isinstance(tier, str) and re.fullmatch(r"[a-z_]+", tier) else ""
+
+
 def build_command(provider, schema, cwd, images):
     """(argv, output_file or None). `images` are bare file names inside cwd."""
     base = resolve(provider)
@@ -69,7 +82,9 @@ def build_command(provider, schema, cwd, images):
         # so Claude has no way to read files on disk (a Read tool could open files outside the outbox).
         argv = base + ["-p", "--input-format", "stream-json", "--output-format", "stream-json", "--verbose",
                        "--json-schema", json.dumps(schema), "--safe-mode", "--strict-mcp-config",
-                       "--no-session-persistence", "--tools", ""]
+                       "--no-session-persistence", "--tools", "",
+                       # 24 frames, analysis + skill: 310 s at the user's default effort, 79 s at medium, same steps
+                       "--effort", "medium"]
         return argv, None
     schema_file = Path(cwd) / "_schema.json"
     out_file = Path(cwd) / "_answer.json"
@@ -79,6 +94,9 @@ def build_command(provider, schema, cwd, images):
                    "-C", str(cwd), "--json", "--output-schema", schema_file.name, "-o", out_file.name]
     for feature in ("shell_tool", "unified_exec", "view_image", "browser_use", "apps"):
         argv += ["--disable", feature]
+    tier = codex_service_tier()
+    if tier:  # "fast": 95 s -> 63 s for 24 frames, analysis + skill
+        argv += ["-c", f'service_tier="{tier}"']
     if images:
         argv += ["--image=" + ",".join(images)]
     return argv + ["-"], out_file

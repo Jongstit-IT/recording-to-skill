@@ -60,6 +60,9 @@
   @keyframes spin { to { transform:rotate(360deg); } }
   #zoom { position:fixed; inset:0; background:rgba(0,0,0,.8); display:none; place-items:center; z-index:9; cursor:zoom-out; }
   #zoom img { max-width:95vw; max-height:95vh; }
+  #busy { position:fixed; inset:0; background:rgba(246,245,242,.85); display:none; place-items:center; z-index:8; }
+  #busy.on { display:grid; }
+  #busy > div { display:flex; align-items:center; gap:14px; background:var(--card); border:1px solid var(--line); border-radius:12px; padding:18px 26px; font-size:16px; }
   .tag { font-size:11px; background:var(--bg); border-radius:6px; padding:1px 6px; }
 </style>
 </head>
@@ -79,6 +82,7 @@
 <nav><h2>SESSIONS <span id="count"></span></h2><div id="sessions"></div></nav>
 <main id="main"></main>
 <div id="zoom"></div>
+<div id="busy" role="status" aria-live="polite"><div><div class="spin"></div><span id="busyText"></span></div></div>
 
 <script>
 const $ = s => document.querySelector(s);
@@ -132,6 +136,8 @@ window.addEventListener("pywebviewready", boot);
 
 $("#recBtn").onclick = () => state.recording ? stopRec() : startRec();
 $("#pauseBtn").onclick = () => api().toggle_pause();
+$("#monitor").onchange = () => api().identify_monitor($("#monitor").value);
+function busy(text) { $("#busyText").textContent = text || ""; $("#busy").classList.toggle("on", !!text); }
 
 async function startRec() {
   if (!$("#provider").value) { alert("ไม่พบ Claude Code หรือ Codex ในเครื่อง ติดตั้งและ login ก่อน"); return; }
@@ -144,9 +150,9 @@ async function stopRec() {
   stoppingUI();
   finishRec(await api().stop_recording());
 }
-function stoppingUI() { $("#recHint").textContent = "กำลังบันทึกและตัดภาพ…"; $("#recBtn").disabled = true; }
+function stoppingUI() { $("#recHint").textContent = "กำลังบันทึกและตัดภาพ…"; $("#recBtn").disabled = true; busy("กำลังบันทึกวิดีโอ…"); }
 async function finishRec(s) {
-  state.recording = false; $("#recBtn").classList.remove("on"); $("#recBtn").disabled = false; $("#pauseBtn").hidden = true;
+  busy(""); state.recording = false; $("#recBtn").classList.remove("on"); $("#recBtn").disabled = false; $("#pauseBtn").hidden = true;
   $("#recHint").textContent = "กดปุ่มแดงเพื่อเริ่มอัด แล้วทำงานให้จบ"; $("#timer").textContent = "00:00";
   if (s.error) alert(s.error);
   renderSessions(await api().list_sessions());
@@ -162,6 +168,7 @@ window.onBackend = msg => {
   else if (msg.kind === "hotkey_start") startRec();
   else if (msg.kind === "stopping") stoppingUI();
   else if (msg.kind === "stopped") finishRec(msg.session);
+  else if (msg.kind === "extracting") busy(`กำลังตัดภาพจากวิดีโอ ${msg.done}/${msg.total}`);
   else if (msg.kind === "status") alert(msg.text);
   else if (msg.kind === "progress" && state.job && state.job.id === msg.id) { state.job.secs = msg.secs; state.job.lines = msg.lines; renderProgress(); }
   else if (msg.kind === "done") {

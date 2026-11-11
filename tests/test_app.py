@@ -99,7 +99,10 @@ class MediaTest(unittest.TestCase):
         events = [{"t": 1002.0, "type": "click", "button": "left", "x": 960, "y": 540, "title": "ลับ", "app": "x.exe"},
                   {"t": 1004.5, "type": "focus", "title": "เปิดเผยได้", "app": "y.exe"}]
         plan = frames.plan(events, timing, mon, duration=6.0)
-        recs = frames.extract(self.tmp, plan)
+        progress = []
+        recs = frames.extract(self.tmp, plan, lambda done, total: progress.append((done, total)))
+        self.assertEqual(progress[-1], (len(recs), len(recs)))
+        self.assertEqual(sorted(p.name for p in (self.tmp / "frames").glob("*.png")), sorted(r["file"] for r in recs))
         click = next(r for r in recs if r["kind"] == "click")
         png = self.tmp / "frames" / click["file"]
         # 1920 wide -> scaled to 1600 (ratio 0.8333); marker edge at x=960-22 -> ~782
@@ -176,6 +179,7 @@ class ProviderTest(unittest.TestCase):
         self.assertNotIn("--bare", argv)
         self.assertEqual(argv[argv.index("--tools") + 1], "")  # no tools: Read could open files outside the outbox
         self.assertEqual(argv[argv.index("--input-format") + 1], "stream-json")
+        self.assertEqual(argv[argv.index("--effort") + 1], "medium")
         self.assertIsNone(out)
         (tmp / "001_00001.00s.png").write_bytes(b"\x89PNG fake")
         msg = json.loads(providers.claude_message("ดูภาพ", tmp, ["001_00001.00s.png"]))
@@ -188,6 +192,12 @@ class ProviderTest(unittest.TestCase):
         for feature in ("shell_tool", "unified_exec", "view_image"):
             self.assertEqual(argv[argv.index(feature) - 1], "--disable")
         self.assertTrue((tmp / "_schema.json").exists())
+        with mock.patch.dict(os.environ, {"CODEX_HOME": str(tmp)}):
+            self.assertNotIn("-c", providers.build_command("codex", prompts.ANALYSIS_SCHEMA, tmp, [])[0])
+            (tmp / "config.toml").write_text('model = "x"\nservice_tier = "fast"\n[mcp_servers.a]\ncommand = "a"\n',
+                                             encoding="utf-8")
+            argv = providers.build_command("codex", prompts.ANALYSIS_SCHEMA, tmp, [])[0]
+            self.assertEqual(argv[argv.index("-c") + 1], 'service_tier="fast"')
         shutil.rmtree(tmp.parent)
 
     def test_parse_claude_result(self):

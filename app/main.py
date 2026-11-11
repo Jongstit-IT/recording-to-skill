@@ -10,6 +10,7 @@ import time
 from pathlib import Path
 
 import activity
+import border
 import frames
 import prompts
 import providers
@@ -43,6 +44,7 @@ class Api:
         self._started = 0.0
         self._jobs = {}  # session id -> cancel Event
         self._monitors = recorder.monitors()
+        self._border = border.Border()
         self._act = activity.Activity(hotkeys={
             (activity.MOD_CONTROL | activity.MOD_ALT, ord("R")): self._hotkey_toggle,
             (activity.MOD_CONTROL | activity.MOD_ALT, ord("P")): self.toggle_pause,
@@ -79,6 +81,11 @@ class Api:
         return "data:image/png;base64," + base64.b64encode(data).decode()
 
     # ---- recording ---------------------------------------------------------
+    def identify_monitor(self, monitor_index):
+        """Flash the frame on the monitor picked in the dropdown."""
+        if not self._rec:
+            self._border.show(self._monitors[int(monitor_index)], seconds=1.5)
+
     def start_recording(self, monitor_index, provider, lang):
         if self._rec:
             return {"error": "กำลังอัดอยู่แล้ว"}
@@ -87,6 +94,7 @@ class Api:
         self._rec = recorder.Recorder(self._current.dir, mon)
         self._act.start(self._current.dir / "events.jsonl")
         self._rec.start()
+        self._border.show(mon)
         self._paused, self._started = False, time.time()
         threading.Thread(target=self._limit, args=(self._rec,), daemon=True).start()
         if self._window:
@@ -109,6 +117,7 @@ class Api:
         else:
             self._rec.pause()
         self._paused = not self._paused
+        self._border.show(self._current.data["monitor"], border.AMBER if self._paused else border.RED)
         self._push("paused", paused=self._paused)
         return {"paused": self._paused}
 
@@ -118,13 +127,14 @@ class Api:
         rec, s = self._rec, self._current
         self._rec = None
         self._act.stop()
+        self._border.hide()
         try:
             timing = rec.stop()  # stop capturing before the app window comes back on screen
             if self._window:
                 self._window.restore()
             duration = sum(t["duration"] for t in timing)
             planned = frames.plan(s.events(), timing, s.data["monitor"], duration)
-            recs = frames.extract(s.dir, planned)
+            recs = frames.extract(s.dir, planned, lambda done, total: self._push("extracting", done=done, total=total))
             s.update(status="recorded", timing=timing, frames=recs)
         except Exception as e:  # keep the session so the user can delete it
             logging.exception("stop failed")
@@ -172,10 +182,12 @@ class Api:
         self._jobs[sid] = cancel
 
         def work():
+            t0 = time.time()
             try:
                 result = providers.run(s.data["provider"], prompt, schema, str(s.dir / "outbox"), images,
                                        on_progress=lambda n, secs: self._push("progress", id=sid, lines=n, secs=secs),
                                        cancel=cancel)
+                logging.info("%s %s done in %.0fs (%d images)", s.data["provider"], field, time.time() - t0, len(images))
                 fresh = self._session(sid)  # keep edits the user autosaved while the AI was running
                 fresh.update(**{field: result, "status": status})
                 self._push("done", id=sid, session=self._view(fresh))
@@ -198,6 +210,7 @@ class Api:
         if self._rec:
             rec, self._rec = self._rec, None
             self._act.stop()
+            self._border.hide()
             rec.pause()
             self._current.update(status="failed", error="ปิดแอประหว่างอัด วิดีโอส่วนนี้ไม่ได้บันทึกเป็นผลลัพธ์ ลบ session นี้ได้")
 
