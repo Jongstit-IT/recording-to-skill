@@ -7,7 +7,7 @@
 ## ดาวน์โหลด
 
 1. ไปที่ [Releases](https://github.com/Jongstit-IT/recording-to-skill/releases/latest) แล้วโหลด `RecordingToSkill.exe` (Windows x64 ไม่ต้องติดตั้ง ทดสอบบน Windows 11 ส่วน Windows 10 ยังไม่ได้ทดสอบ)
-2. ดับเบิลคลิก ถ้าขึ้น **"Windows protected your PC"** ให้กด **More info → Run anyway** (ไฟล์ยังไม่ได้ sign)
+2. ดับเบิลคลิก ถ้าขึ้น **"Windows protected your PC"** ให้กด **More info → Run anyway** (ไฟล์ยังไม่ได้ sign) ระหว่างโปรแกรมเปิดจะมีหน้าจอ "กำลังเปิดโปรแกรม" ขึ้น ครั้งแรกหลังดาวน์โหลดอาจรอ 10–30 วินาทีเพราะ antivirus สแกนไฟล์ ถ้ากดเปิดซ้ำ จะเรียกหน้าต่างเดิมขึ้นมาแทนการเปิดใหม่
 3. ต้องมี AI อย่างน้อย 1 ตัวที่ติดตั้งและ login ไว้แล้ว แอปจะใช้ login เดิม **ไม่ต้องใส่ API key**
    - [Claude Code](https://code.claude.com): `npm install -g @anthropic-ai/claude-code` แล้วรัน `claude` หนึ่งครั้งเพื่อ login
    - [OpenAI Codex CLI](https://github.com/openai/codex): `npm install -g @openai/codex` แล้วรัน `codex` หนึ่งครั้งเพื่อ login

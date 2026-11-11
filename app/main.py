@@ -1,5 +1,6 @@
 """Recording to Skill: record the screen, review AI-drafted steps, export SKILL.md."""
 import base64
+import ctypes
 import json
 import logging
 import os
@@ -237,11 +238,42 @@ class Api:
         return session.list_sessions()
 
 
+def close_splash():
+    """The exe's bootloader shows splash.png while it unpacks; drop it once our window is up."""
+    try:
+        import pyi_splash
+        pyi_splash.close()
+    except Exception:  # running from source, or already closed
+        pass
+
+
+def already_running():
+    """Second launch: bring the open window forward instead of starting another recorder."""
+    k32, u32 = ctypes.WinDLL("kernel32", use_last_error=True), ctypes.WinDLL("user32")
+    k32.CreateMutexW.restype = ctypes.c_void_p
+    k32.CreateMutexW.argtypes = [ctypes.c_void_p, ctypes.c_int, ctypes.c_wchar_p]
+    u32.FindWindowW.restype = ctypes.c_void_p
+    u32.FindWindowW.argtypes = [ctypes.c_wchar_p, ctypes.c_wchar_p]
+    u32.ShowWindow.argtypes = [ctypes.c_void_p, ctypes.c_int]
+    u32.SetForegroundWindow.argtypes = [ctypes.c_void_p]
+    k32.CreateMutexW(None, False, "RecordingToSkill.single-instance")  # held until this process exits
+    if ctypes.get_last_error() != 183:  # ERROR_ALREADY_EXISTS
+        return False
+    hwnd = u32.FindWindowW(None, APP_NAME)  # none yet if the first copy is still starting: just leave
+    if hwnd:
+        u32.ShowWindow(hwnd, 9)  # SW_RESTORE
+        u32.SetForegroundWindow(hwnd)
+    return True
+
+
 def main():
+    if already_running():
+        return
     activity.set_dpi_aware()
     api = Api()
     api._window = webview.create_window(APP_NAME, ui_path(), js_api=api, width=1280, height=820, min_size=(980, 640))
     api._window.events.closing += api._on_closing
+    api._window.events.shown += close_splash
     webview.start(debug=bool(os.environ.get("RTS_DEBUG")))
     os._exit(0)  # don't wait on worker threads; the job object takes child processes down with us
 

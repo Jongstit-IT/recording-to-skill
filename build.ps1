@@ -24,6 +24,7 @@ pyinstaller --noconfirm --onefile --noconsole --name RecordingToSkill `
     --distpath "$root\dist" --workpath "$root\build\pyi" --specpath "$root\build" `
     --paths "$root\app" --paths "$root\recording-to-skill\scripts" `
     --add-data "$root\app\ui;ui" `
+    --splash "$root\app\splash.png" `
     --add-binary "$ff\ffmpeg.exe;ffmpeg" --add-binary "$ff\ffprobe.exe;ffmpeg" --add-data "$ff\LICENSE.txt;ffmpeg" `
     "$root\app\main.py"
 if ($LASTEXITCODE) { throw "pyinstaller failed" }
