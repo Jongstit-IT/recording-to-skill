@@ -14,6 +14,38 @@ from pathlib import Path
 
 CREATE_NO_WINDOW = 0x08000000
 FPS = 10
+MAX_SECONDS = 15 * 60
+
+
+class _IO(ctypes.Structure):
+    _fields_ = [(n, ctypes.c_ulonglong) for n in ("r", "w", "o", "rb", "wb", "ob")]
+
+
+class _BASIC(ctypes.Structure):
+    _fields_ = [("a", ctypes.c_longlong), ("b", ctypes.c_longlong), ("LimitFlags", wintypes.DWORD),
+                ("c", ctypes.c_size_t), ("d", ctypes.c_size_t), ("e", wintypes.DWORD), ("f", ctypes.c_size_t),
+                ("g", wintypes.DWORD), ("h", wintypes.DWORD)]
+
+
+class _EXTENDED(ctypes.Structure):
+    _fields_ = [("Basic", _BASIC), ("Io", _IO), ("p", ctypes.c_size_t), ("j", ctypes.c_size_t),
+                ("pp", ctypes.c_size_t), ("jp", ctypes.c_size_t)]
+
+
+_job = None
+
+
+def die_with_app(proc):
+    """Child processes (ffmpeg, AI CLIs) are killed when this app exits, even on a crash or Task Manager kill."""
+    global _job
+    k = ctypes.windll.kernel32
+    if _job is None:
+        k.CreateJobObjectW.restype = wintypes.HANDLE
+        _job = k.CreateJobObjectW(None, None)
+        info = _EXTENDED()
+        info.Basic.LimitFlags = 0x2000  # JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE
+        k.SetInformationJobObject(wintypes.HANDLE(_job), 9, ctypes.byref(info), ctypes.sizeof(info))
+    k.AssignProcessToJobObject(wintypes.HANDLE(_job), wintypes.HANDLE(int(proc._handle)))
 
 
 def tool(name):
@@ -71,9 +103,11 @@ class Recorder:
                "-f", "gdigrab", "-framerate", str(FPS), "-draw_mouse", "1",
                "-offset_x", str(m["left"]), "-offset_y", str(m["top"]),
                "-video_size", f"{m['width']}x{m['height']}", "-i", "desktop",
+               "-frames:v", str(MAX_SECONDS * FPS),  # hard cap even if the app never says stop
                "-c:v", "libx264", "-preset", "ultrafast", "-crf", "28", "-pix_fmt", "yuv420p", str(seg)]
         self.proc = subprocess.Popen(cmd, stdin=subprocess.PIPE, stderr=subprocess.PIPE,
                                      creationflags=CREATE_NO_WINDOW)
+        die_with_app(self.proc)
         self.segments.append(seg)
 
     def pause(self):

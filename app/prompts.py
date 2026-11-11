@@ -43,22 +43,25 @@ SKILL_SCHEMA = _obj({
 })
 
 
-def analysis_prompt(goal, frame_files, lang):
+def analysis_prompt(goal, frame_files, lang, timeline=""):
     frames = "\n".join(f"- {f}" for f in frame_files)
     return f"""You are analyzing a screen recording of a person doing a computer task once, so it can later become a reusable agent skill.
 
-Evidence in the current folder (read-only):
-- PNG frames (listed below). File names contain the time in seconds. A red box marks where the mouse was clicked.
-- timeline.txt: clicks and foreground-window changes with times. Keystrokes were NOT recorded.
+Evidence:
+- The frame images attached to this message, in the same order as the list below. File names contain the time in seconds. A red box marks where the mouse was clicked.
+- The timeline below: clicks and foreground-window changes with times (seconds). Keystrokes were NOT recorded.
 
 User's goal: {goal.strip() or "(not given; infer it from the evidence and say so in the summary)"}
 
 Frames:
 {frames}
 
+Timeline:
+{timeline.strip() or "(empty)"}
+
 Do this:
-1. Open and look at EVERY frame listed above. Never describe a frame you did not open.
-2. Use timeline.txt to order actions and to know which window was active.
+1. Look at EVERY attached frame. Never describe a frame you did not see.
+2. Use the timeline to order actions and to know which window was active.
 3. Write the steps the person took, in order, in past tense. Merge tiny actions into meaningful steps.
 4. Mark each step "observed" (visible in a frame) or "inferred" (follows from frames/timeline). List the supporting frame file names.
 5. Do not guess clipboard contents, typed text you cannot read, keyboard shortcuts, unreadable URLs, or hidden commands. Put such gaps in "uncertainties".

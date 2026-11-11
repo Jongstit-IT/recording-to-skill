@@ -1,9 +1,11 @@
 """Run the user's own logged-in agent CLI (Claude Code or Codex) headless. No API keys.
 
-Prompts go on stdin; the CLI runs with cwd = the outbox folder, which holds only the
-frames the user approved. npm .cmd shims are resolved to the real exe/js so arguments
-never pass through cmd.exe (length limit, quoting).
+Neither CLI gets a tool that can read the disk: Claude receives the approved frames inline
+(stdin stream-json, --tools ""), Codex via -i with its shell/file/image tools disabled.
+Probed: both answered BLOCKED when asked to read a file next to the outbox.
+npm .cmd shims are resolved to the real exe/js so arguments never pass through cmd.exe.
 """
+import base64
 import json
 import re
 import shutil
@@ -11,6 +13,8 @@ import subprocess
 import threading
 import time
 from pathlib import Path
+
+from recorder import die_with_app
 
 CREATE_NO_WINDOW = 0x08000000
 PROVIDERS = {"claude": "Claude Code", "codex": "OpenAI Codex"}
@@ -61,21 +65,33 @@ def build_command(provider, schema, cwd, images):
     if not base:
         raise ProviderError(f"ไม่พบ {PROVIDERS[provider]} ในเครื่อง ติดตั้งและ login ก่อน แล้วเปิดแอปใหม่")
     if provider == "claude":
-        tools = "Read" if images else ""
-        argv = base + ["-p", "--output-format", "stream-json", "--verbose", "--json-schema", json.dumps(schema),
-                       "--safe-mode", "--strict-mcp-config", "--no-session-persistence",
-                       "--tools", tools]
-        if tools:
-            argv += ["--allowedTools", tools]
+        # Images go inside the stdin message (see claude_message) and every tool is off,
+        # so Claude has no way to read files on disk (a Read tool could open files outside the outbox).
+        argv = base + ["-p", "--input-format", "stream-json", "--output-format", "stream-json", "--verbose",
+                       "--json-schema", json.dumps(schema), "--safe-mode", "--strict-mcp-config",
+                       "--no-session-persistence", "--tools", ""]
         return argv, None
     schema_file = Path(cwd) / "_schema.json"
     out_file = Path(cwd) / "_answer.json"
     schema_file.write_text(json.dumps(schema), encoding="utf-8")
-    argv = base + ["exec", "--skip-git-repo-check", "--ephemeral", "-s", "read-only", "-C", str(cwd), "--json",
-                   "--output-schema", schema_file.name, "-o", out_file.name]
+    # Images are attached with -i, so Codex needs no tools: turn off everything that can read the disk.
+    argv = base + ["exec", "--skip-git-repo-check", "--ephemeral", "--ignore-user-config", "-s", "read-only",
+                   "-C", str(cwd), "--json", "--output-schema", schema_file.name, "-o", out_file.name]
+    for feature in ("shell_tool", "unified_exec", "view_image", "browser_use", "apps"):
+        argv += ["--disable", feature]
     if images:
         argv += ["--image=" + ",".join(images)]
     return argv + ["-"], out_file
+
+
+def claude_message(prompt, cwd, images):
+    """One stream-json user message: the prompt, then each image labelled with its file name."""
+    content = [{"type": "text", "text": prompt}]
+    for name in images:
+        data = base64.b64encode((Path(cwd) / name).read_bytes()).decode()
+        content += [{"type": "text", "text": f"Frame {name}:"},
+                    {"type": "image", "source": {"type": "base64", "media_type": "image/png", "data": data}}]
+    return json.dumps({"type": "user", "message": {"role": "user", "content": content}}) + "\n"
 
 
 def parse_claude(lines):
@@ -112,11 +128,13 @@ def run(provider, prompt, schema, cwd, images=(), timeout=900, on_progress=None,
         out_file.unlink()
     proc = subprocess.Popen(argv, cwd=cwd, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                             encoding="utf-8", errors="replace", creationflags=CREATE_NO_WINDOW)
+    die_with_app(proc)
     lines, start = [], time.time()
+    payload = claude_message(prompt, cwd, images) if provider == "claude" else prompt
 
     def feed():
         try:
-            proc.stdin.write(prompt)
+            proc.stdin.write(payload)
             proc.stdin.close()
         except OSError:
             pass

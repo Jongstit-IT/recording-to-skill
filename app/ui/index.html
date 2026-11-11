@@ -98,8 +98,9 @@ function h(tag, attrs = {}, ...kids) {
   return el;
 }
 const fmt = s => `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(Math.floor(s % 60)).padStart(2, "0")}`;
-let saveTimer;
-function autosave(fields) { clearTimeout(saveTimer); saveTimer = setTimeout(() => api().update(state.current.id, fields), 500); }
+let saveTimer, pending = null, pendingId = null;
+function autosave(fields) { pending = { ...(pending || {}), ...fields }; pendingId = state.current.id; clearTimeout(saveTimer); saveTimer = setTimeout(flush, 500); }
+async function flush() { clearTimeout(saveTimer); if (!pending) return; const f = pending, id = pendingId; pending = null; await api().update(id, f); }
 
 async function img(name) {
   const key = state.current.id + "/" + name;
@@ -163,7 +164,12 @@ window.onBackend = msg => {
   else if (msg.kind === "stopped") finishRec(msg.session);
   else if (msg.kind === "status") alert(msg.text);
   else if (msg.kind === "progress" && state.job && state.job.id === msg.id) { state.job.secs = msg.secs; state.job.lines = msg.lines; renderProgress(); }
-  else if (msg.kind === "done") { state.job = null; api().list_sessions().then(renderSessions); if (state.current && state.current.id === msg.id) { state.current = msg.session; state.view = msg.session.status === "analyzed" ? "steps" : "skill"; render(); } }
+  else if (msg.kind === "done") {
+    state.job = null; api().list_sessions().then(renderSessions);
+    if (state.current && state.current.id === msg.id) flush().then(() => api().get_session(msg.id)).then(s => {
+      state.current = s; state.view = s.status === "analyzed" ? "steps" : "skill"; render();
+    });
+  }
   else if (msg.kind === "failed") { state.job = null; render(); alert("AI ทำงานไม่สำเร็จ:\n" + msg.error); }
 };
 
@@ -182,6 +188,7 @@ function renderSessions(list) {
     } }, "×"))));
 }
 async function openSession(id) {
+  await flush();
   state.current = await api().get_session(id);
   const st = state.current.status;
   state.view = st === "recorded" || st === "failed" ? "review" : st === "analyzed" ? "steps" : "skill";
@@ -219,6 +226,7 @@ function renderProgress() {
 }
 
 async function runJob(kind) {
+  await flush();
   const s = state.current;
   const r = kind === "analysis" ? await api().analyze(s.id) : await api().create_skill(s.id);
   if (r.error) return alert(r.error);
@@ -327,7 +335,7 @@ function viewSkill(s) {
     listField("สมมติฐานที่ต้องยืนยัน", "assumptions"),
     h("div", { class: "bar" }, done, h("div", { id: "jobbar" }),
       h("button", { class: "primary", disabled: !!state.job, onclick: async () => {
-        clearTimeout(saveTimer); await api().update(s.id, { skill: k });
+        await flush();
         const r = await api().export(s.id);
         if (r.error) return alert(r.error);
         if (r.path) { s.exported = r.path; done.replaceChildren("Export แล้ว: " + r.path + " ", h("button", { onclick: () => api().reveal(r.path) }, "เปิดโฟลเดอร์")); api().list_sessions().then(renderSessions); }

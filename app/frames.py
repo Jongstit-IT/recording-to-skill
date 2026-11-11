@@ -29,7 +29,16 @@ def plan(events, timing, monitor, duration, cap=40, gap=8.0):
                 items.append({"t": round(max(t - 0.2, 0), 3), "kind": "click", "click": [x, y], **meta})
         elif e["type"] == "focus":
             items.append({"t": round(min(t + 0.8, duration), 3), "kind": "window", **meta})
-    items.append({"t": round(duration, 3), "kind": "end"})
+    end = duration
+    trailing = None
+    for e in reversed(events):  # user switched back to this app to press stop: end on the task, not on us
+        if not e.get("own"):
+            break
+        trailing = e
+    if trailing and video_time(trailing["t"], timing) is not None:
+        end = max(0.0, video_time(trailing["t"], timing) - 0.3)
+    items = [i for i in items if i["t"] <= end]
+    items.append({"t": round(end, 3), "kind": "end"})
     items.sort(key=lambda i: i["t"])
 
     filled = []

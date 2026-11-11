@@ -66,6 +66,14 @@ class TimingTest(unittest.TestCase):
         self.assertEqual(times, sorted(times))
         self.assertLessEqual(max(b - a for a, b in zip(times, times[1:])), 8.0)
 
+    def test_plan_ends_before_switching_back_to_app(self):
+        events = [{"t": 1002.0, "type": "click", "button": "left", "x": 2000, "y": 100},
+                  {"t": 1025.0, "type": "focus", "title": "Recording to Skill", "own": True},
+                  {"t": 1026.0, "type": "click", "button": "left", "x": 2000, "y": 100, "own": True}]
+        plan = frames.plan(events, TIMING, MON, duration=20.0)
+        self.assertEqual(plan[-1], {"t": 14.7, "kind": "end"})
+        self.assertTrue(all(p["t"] <= 14.7 for p in plan))
+
     def test_plan_cap(self):
         events = [{"t": 1000.0 + i * 0.4, "type": "click", "button": "left", "x": 2000, "y": 10} for i in range(25)]
         plan = frames.plan(events, TIMING, MON, duration=20.0, cap=10)
@@ -166,11 +174,19 @@ class ProviderTest(unittest.TestCase):
         argv, out = providers.build_command("claude", prompts.ANALYSIS_SCHEMA, tmp, ["001_00001.00s.png"])
         self.assertIn("--safe-mode", argv)
         self.assertNotIn("--bare", argv)
-        self.assertEqual(argv[argv.index("--tools") + 1], "Read")
+        self.assertEqual(argv[argv.index("--tools") + 1], "")  # no tools: Read could open files outside the outbox
+        self.assertEqual(argv[argv.index("--input-format") + 1], "stream-json")
         self.assertIsNone(out)
+        (tmp / "001_00001.00s.png").write_bytes(b"\x89PNG fake")
+        msg = json.loads(providers.claude_message("ดูภาพ", tmp, ["001_00001.00s.png"]))
+        kinds = [c["type"] for c in msg["message"]["content"]]
+        self.assertEqual(kinds, ["text", "text", "image"])
+        self.assertIn("001_00001.00s.png", msg["message"]["content"][1]["text"])
         argv, out = providers.build_command("codex", prompts.ANALYSIS_SCHEMA, tmp, ["a.png", "b.png"])
         self.assertEqual(argv[-1], "-")
         self.assertIn("--image=a.png,b.png", argv)
+        for feature in ("shell_tool", "unified_exec", "view_image"):
+            self.assertEqual(argv[argv.index(feature) - 1], "--disable")
         self.assertTrue((tmp / "_schema.json").exists())
         shutil.rmtree(tmp.parent)
 

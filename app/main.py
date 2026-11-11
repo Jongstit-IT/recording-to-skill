@@ -118,16 +118,18 @@ class Api:
         rec, s = self._rec, self._current
         self._rec = None
         self._act.stop()
-        if self._window:
-            self._window.restore()
         try:
-            timing = rec.stop()
+            timing = rec.stop()  # stop capturing before the app window comes back on screen
+            if self._window:
+                self._window.restore()
             duration = sum(t["duration"] for t in timing)
             planned = frames.plan(s.events(), timing, s.data["monitor"], duration)
             recs = frames.extract(s.dir, planned)
             s.update(status="recorded", timing=timing, frames=recs)
         except Exception as e:  # keep the session so the user can delete it
             logging.exception("stop failed")
+            if self._window:
+                self._window.restore()
             s.update(status="failed", error=str(e))
             return {"error": f"บันทึกไม่สำเร็จ: {e}", "id": s.data["id"]}
         return self._view(s)
@@ -151,7 +153,8 @@ class Api:
         sent = frames.build_outbox(s.dir, s.data["frames"], s.events(), s.data["timing"])
         if not sent:
             return {"error": "ไม่มีภาพที่จะส่ง เลือกอย่างน้อย 1 ภาพ"}
-        prompt = prompts.analysis_prompt(s.data["goal"], sent, s.data["lang"])
+        timeline = (s.dir / "outbox" / "timeline.txt").read_text(encoding="utf-8")
+        prompt = prompts.analysis_prompt(s.data["goal"], sent, s.data["lang"], timeline)
         self._run(s, "analysis", prompt, prompts.ANALYSIS_SCHEMA, sent, "analyzed")
         return {"started": True, "frames": len(sent)}
 
@@ -173,8 +176,9 @@ class Api:
                 result = providers.run(s.data["provider"], prompt, schema, str(s.dir / "outbox"), images,
                                        on_progress=lambda n, secs: self._push("progress", id=sid, lines=n, secs=secs),
                                        cancel=cancel)
-                s.update(**{field: result, "status": status})
-                self._push("done", id=sid, session=self._view(s))
+                fresh = self._session(sid)  # keep edits the user autosaved while the AI was running
+                fresh.update(**{field: result, "status": status})
+                self._push("done", id=sid, session=self._view(fresh))
             except Exception as e:
                 logging.exception("AI run failed")
                 self._push("failed", id=sid, error=str(e))
@@ -186,6 +190,16 @@ class Api:
     def cancel(self, sid):
         if sid in self._jobs:
             self._jobs[sid].set()
+
+    def _on_closing(self):
+        """Window closed mid-recording or mid-analysis: stop capture and AI, keep the session for deletion."""
+        for cancel in self._jobs.values():
+            cancel.set()
+        if self._rec:
+            rec, self._rec = self._rec, None
+            self._act.stop()
+            rec.pause()
+            self._current.update(status="failed", error="ปิดแอประหว่างอัด วิดีโอส่วนนี้ไม่ได้บันทึกเป็นผลลัพธ์ ลบ session นี้ได้")
 
     # ---- export ------------------------------------------------------------
     def export(self, sid):
@@ -214,7 +228,9 @@ def main():
     activity.set_dpi_aware()
     api = Api()
     api._window = webview.create_window(APP_NAME, ui_path(), js_api=api, width=1280, height=820, min_size=(980, 640))
+    api._window.events.closing += api._on_closing
     webview.start(debug=bool(os.environ.get("RTS_DEBUG")))
+    os._exit(0)  # don't wait on worker threads; the job object takes child processes down with us
 
 
 if __name__ == "__main__":

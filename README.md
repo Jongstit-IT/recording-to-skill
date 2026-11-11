@@ -6,7 +6,7 @@
 
 ## ดาวน์โหลด
 
-1. ไปที่ [Releases](https://github.com/Jongstit-IT/recording-to-skill/releases/latest) แล้วโหลด `RecordingToSkill.exe` (Windows 10/11 x64 ไม่ต้องติดตั้ง)
+1. ไปที่ [Releases](https://github.com/Jongstit-IT/recording-to-skill/releases/latest) แล้วโหลด `RecordingToSkill.exe` (Windows x64 ไม่ต้องติดตั้ง ทดสอบบน Windows 11 ส่วน Windows 10 ยังไม่ได้ทดสอบ)
 2. ดับเบิลคลิก ถ้าขึ้น **"Windows protected your PC"** ให้กด **More info → Run anyway** (ไฟล์ยังไม่ได้ sign)
 3. ต้องมี AI อย่างน้อย 1 ตัวที่ติดตั้งและ login ไว้แล้ว แอปจะใช้ login เดิม **ไม่ต้องใส่ API key**
    - [Claude Code](https://code.claude.com): `npm install -g @anthropic-ai/claude-code` แล้วรัน `claude` หนึ่งครั้งเพื่อ login
@@ -20,13 +20,17 @@
 4. **สร้าง skill:** AI เขียน skill ที่ใช้ซ้ำได้ (input, ขั้นตอน, เครื่องมือ, กรณีผิดพลาด) แก้ในการ์ดได้ทุกช่อง
 5. **Export:** เลือกโฟลเดอร์ แอปจะสร้าง `<ชื่อ-skill>/SKILL.md` + `analysis.md` จากนั้นคัดลอกทั้งโฟลเดอร์ไปที่ `.claude/skills/` (Claude Code) หรือ `.agents/skills/` (Codex)
 
-การวิเคราะห์ใช้เวลาหลายนาที (ทดสอบ 24 ภาพ: Claude ประมาณ 3 นาที, Codex ประมาณ 2 นาที) กดยกเลิกได้
+AI ใช้เวลาหลายนาทีและกดยกเลิกได้ จากการทดสอบ 24 ภาพ:
+- วิเคราะห์: Claude ประมาณ 3 นาที, Codex ประมาณ 2 นาที
+- สร้าง skill: อีก 2–4 นาที
 
 ## ความเป็นส่วนตัว
 
 - อัดภาพจอ เวลา/ตำแหน่งที่คลิก และชื่อหน้าต่าง **ไม่บันทึกสิ่งที่พิมพ์**
 - ทุกอย่างเก็บอยู่ในเครื่องที่ `%LOCALAPPDATA%\RecordingToSkill\sessions\` จนกว่าคุณจะกด "วิเคราะห์"
-- ตอนวิเคราะห์ แอปคัดลอกเฉพาะภาพที่ติ๊กไว้และ timeline ที่เกี่ยวข้องไปไว้ในโฟลเดอร์ `outbox` และ AI CLI เห็นได้แค่โฟลเดอร์นั้น ภาพจะถูกส่งให้ Anthropic หรือ OpenAI ตาม AI ที่เลือก
+- ตอนวิเคราะห์ AI ได้รับเฉพาะภาพที่ติ๊กไว้และ timeline ช่วงนั้น โดยส่งแนบไปกับข้อความ และแอปปิดเครื่องมืออ่านไฟล์หรือรันคำสั่งของ AI ทั้งหมด
+  - ทดสอบแล้ว: Claude Code และ Codex เปิดไฟล์อื่นในเครื่องไม่ได้
+  - ภาพจะถูกส่งให้ Anthropic หรือ OpenAI ตาม AI ที่เลือก
 - กด × ที่ session เพื่อลบวิดีโอ ภาพ และผลวิเคราะห์ทั้งหมด
 
 ## ข้อจำกัด
@@ -65,7 +69,7 @@ Push tag `v*` แล้ว GitHub Actions จะ build, test และแนบ 
 
 Record yourself doing a task once; an AI turns it into a `SKILL.md` that Claude Code or Codex can repeat.
 
-- **Download** `RecordingToSkill.exe` from [Releases](https://github.com/Jongstit-IT/recording-to-skill/releases/latest) (Windows 10/11 x64, portable). It is unsigned: on SmartScreen choose *More info → Run anyway*.
+- **Download** `RecordingToSkill.exe` from [Releases](https://github.com/Jongstit-IT/recording-to-skill/releases/latest) (Windows x64, portable; tested on Windows 11 only). It is unsigned: on SmartScreen choose *More info → Run anyway*.
 - **Requires** Claude Code or OpenAI Codex CLI, installed and signed in. The app runs them headless with your existing login; no API keys.
 - **Flow:**
   1. Record (`Ctrl+Alt+R`, pause with `Ctrl+Alt+P`).
@@ -76,5 +80,5 @@ Record yourself doing a task once; an AI turns it into a `SKILL.md` that Claude 
 - **Privacy:**
   - Captures the screen, click times and positions, and window titles. Keystrokes are never recorded.
   - Data stays in `%LOCALAPPDATA%\RecordingToSkill` until you press Analyze.
-  - Only the approved frames are copied to an `outbox` folder, which is the only folder the AI CLI can access.
+  - Only the approved frames and their timeline are sent to the AI, attached to the prompt. The app runs the CLI with every file-reading and shell tool turned off; a probe confirmed neither Claude Code nor Codex could open other files.
 - **License:** MIT. The exe bundles FFmpeg 9.0.2 (GPLv3, see `licenses/ffmpeg.txt`). Inspired by microsoft/skill-recorder (MIT); this project is not affiliated with Microsoft.
