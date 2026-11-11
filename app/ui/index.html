@@ -1,0 +1,338 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<title>Recording to Skill</title>
+<style>
+  :root { --bg:#f6f5f2; --card:#fff; --line:#e6e3dd; --text:#22201c; --muted:#615d56; --red:#d93025; --red-soft:#fdecea; --ok:#1e8e3e; }
+  * { box-sizing:border-box; }
+  body { margin:0; font:14px/1.5 "Leelawadee UI","Segoe UI",sans-serif; color:var(--text); background:var(--bg); display:grid; grid-template-columns:290px 250px 1fr; height:100vh; overflow:hidden; }
+  aside, nav { border-right:1px solid var(--line); padding:18px; overflow:auto; }
+  aside { background:var(--card); }
+  main { overflow:auto; padding:22px 28px 80px; }
+  h2 { font-size:12px; letter-spacing:.08em; color:var(--muted); margin:0 0 10px; font-weight:600; }
+  h3 { font-size:20px; margin:0 0 4px; }
+  label { display:block; font-size:12px; color:var(--muted); margin-top:12px; }
+  select, input, textarea { width:100%; font:inherit; color:inherit; border:1px solid var(--line); border-radius:8px; padding:7px 9px; background:#fff; }
+  textarea { resize:vertical; min-height:60px; }
+  button { font:inherit; border:1px solid var(--line); background:#fff; border-radius:8px; padding:7px 14px; cursor:pointer; }
+  button:hover { border-color:#bbb; }
+  button.primary { background:var(--red); border-color:var(--red); color:#fff; font-weight:600; }
+  button.icon { padding:2px 8px; color:var(--muted); }
+  button:disabled { opacity:.5; cursor:default; }
+  .muted { color:var(--muted); font-size:12px; }
+  .center { text-align:center; }
+  #recBtn { width:84px; height:84px; border-radius:50%; border:6px solid #f3d3d0; background:#fff; display:grid; place-items:center; margin:8px auto 6px; padding:0; }
+  #recBtn span { width:30px; height:30px; border-radius:50%; background:var(--red); transition:.2s; }
+  #recBtn.on span { border-radius:6px; width:26px; height:26px; }
+  #timer { font:600 30px/1 Consolas,monospace; letter-spacing:.06em; text-align:center; color:#555; }
+  #providerStatus { list-style:none; padding:0; margin:12px 0 0; font-size:12px; }
+  #providerStatus li::before { content:"●"; margin-right:6px; color:#bbb; }
+  #providerStatus li.found::before { color:var(--ok); }
+  .sess { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:9px 11px; margin-bottom:8px; cursor:pointer; position:relative; }
+  .sess.active { border-color:var(--red); box-shadow:0 0 0 2px var(--red-soft); }
+  .sess .t { font-weight:600; margin-right:18px; }
+  .sess .del { position:absolute; right:4px; top:4px; }
+  .badge { font-size:10px; font-weight:700; letter-spacing:.06em; color:var(--muted); }
+  .badge.analyzed, .badge.skill_draft { color:#b06000; } .badge.skill { color:var(--ok); } .badge.failed { color:var(--red); }
+  .tabs { display:flex; gap:6px; margin-bottom:16px; }
+  .tabs button.cur { border-color:var(--text); font-weight:600; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:12px 14px; margin-bottom:10px; }
+  .step { display:grid; grid-template-columns:28px 1fr auto; gap:10px; }
+  .num { width:24px; height:24px; border-radius:50%; background:var(--bg); display:grid; place-items:center; font-size:12px; color:var(--muted); }
+  .step input.title { font-weight:600; border-color:transparent; padding-left:4px; }
+  .step textarea { border-color:transparent; min-height:44px; padding-left:4px; }
+  .step input:focus, .step textarea:focus { border-color:var(--line); }
+  .thumbs { display:flex; gap:6px; flex-wrap:wrap; margin-top:6px; }
+  .thumbs img { height:54px; border-radius:6px; border:1px solid var(--line); }
+  .tools { display:flex; flex-direction:column; gap:2px; }
+  .grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(220px,1fr)); gap:12px; }
+  .frame { background:var(--card); border:2px solid var(--line); border-radius:10px; overflow:hidden; }
+  .frame.off { opacity:.45; border-style:dashed; }
+  .frame img { width:100%; display:block; aspect-ratio:16/9; object-fit:cover; background:#ddd; cursor:zoom-in; }
+  .frame div { padding:6px 9px; font-size:12px; display:flex; justify-content:space-between; gap:8px; }
+  .warn { background:#fff8e1; border:1px solid #f2d27a; border-radius:10px; padding:10px 12px; margin:14px 0; }
+  .bar { position:sticky; bottom:-80px; background:linear-gradient(transparent,var(--bg) 30%); padding:20px 0 6px; display:flex; gap:10px; justify-content:flex-end; align-items:center; }
+  .row { display:flex; gap:10px; } .row > * { flex:1; }
+  pre { white-space:pre-wrap; background:#fff; border:1px solid var(--line); border-radius:8px; padding:10px; font-size:12px; max-height:180px; overflow:auto; }
+  .progress { display:flex; align-items:center; gap:12px; }
+  .spin { width:16px; height:16px; border:2px solid var(--line); border-top-color:var(--red); border-radius:50%; animation:spin 1s linear infinite; }
+  @keyframes spin { to { transform:rotate(360deg); } }
+  #zoom { position:fixed; inset:0; background:rgba(0,0,0,.8); display:none; place-items:center; z-index:9; cursor:zoom-out; }
+  #zoom img { max-width:95vw; max-height:95vh; }
+  .tag { font-size:11px; background:var(--bg); border-radius:6px; padding:1px 6px; }
+</style>
+</head>
+<body>
+<aside>
+  <button id="recBtn" title="เริ่ม/หยุดอัด (Ctrl+Alt+R)"><span></span></button>
+  <div id="timer">00:00</div>
+  <p id="recHint" class="center muted">กดปุ่มแดงเพื่อเริ่มอัด แล้วทำงานให้จบ</p>
+  <div class="center"><button id="pauseBtn" hidden>พักการอัด</button></div>
+  <label>จอที่จะอัด<select id="monitor"></select></label>
+  <label>AI ที่ใช้วิเคราะห์<select id="provider"></select></label>
+  <label>ภาษาของ step และ SKILL.md<select id="lang"><option value="th">ไทย</option><option value="en">English</option></select></label>
+  <ul id="providerStatus"></ul>
+  <p class="muted">Ctrl+Alt+R เริ่ม/หยุด · Ctrl+Alt+P พัก/อัดต่อ</p>
+  <p class="muted">อัดภาพจอ การคลิก และชื่อหน้าต่าง ไม่บันทึกสิ่งที่พิมพ์ ทุกอย่างอยู่ในเครื่องจนกว่าคุณจะกดวิเคราะห์</p>
+</aside>
+<nav><h2>SESSIONS <span id="count"></span></h2><div id="sessions"></div></nav>
+<main id="main"></main>
+<div id="zoom"></div>
+
+<script>
+const $ = s => document.querySelector(s);
+const api = () => window.pywebview.api;
+const PROVIDER_ORG = { claude: "Anthropic", codex: "OpenAI" };
+const STATUS = { recording:"RECORDING", recorded:"ตรวจภาพ", analyzed:"STEPS", skill_draft:"SKILL DRAFT", skill:"EXPORTED", failed:"FAILED" };
+let state = { info:null, current:null, view:"review", recording:false, paused:false, t0:0, elapsed:0, job:null, images:{} };
+
+function h(tag, attrs = {}, ...kids) {
+  const el = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs)) {
+    if (k.startsWith("on")) el.addEventListener(k.slice(2), v);
+    else if (k === "value") el.value = v ?? "";
+    else if (v !== false && v != null) el.setAttribute(k, v === true ? "" : v);
+  }
+  for (const kid of kids.flat()) if (kid != null && kid !== false) el.append(kid.nodeType ? kid : document.createTextNode(kid));
+  return el;
+}
+const fmt = s => `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(Math.floor(s % 60)).padStart(2, "0")}`;
+let saveTimer;
+function autosave(fields) { clearTimeout(saveTimer); saveTimer = setTimeout(() => api().update(state.current.id, fields), 500); }
+
+async function img(name) {
+  const key = state.current.id + "/" + name;
+  if (!state.images[key]) state.images[key] = await api().frame_image(state.current.id, name);
+  return state.images[key];
+}
+const BLANK = "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7";
+function frameImg(name, cls) {
+  const el = h("img", { alt: name, class: cls || "", src: BLANK });
+  img(name).then(src => el.src = src);
+  el.addEventListener("click", () => { $("#zoom").replaceChildren(h("img", { src: el.src, alt: name })); $("#zoom").style.display = "grid"; });
+  return el;
+}
+$("#zoom").onclick = () => $("#zoom").style.display = "none";
+
+// ---------- left panel ----------
+async function boot() {
+  state.info = await api().init();
+  $("#monitor").replaceChildren(...state.info.monitors.map((m, i) => h("option", { value: i }, m)));
+  const ps = state.info.providers;
+  $("#provider").replaceChildren(...Object.entries(ps).map(([k, p]) => h("option", { value: k, disabled: !p.found }, p.name + (p.found ? "" : " (ไม่พบ)"))));
+  const first = Object.keys(ps).find(k => ps[k].found);
+  if (first) $("#provider").value = first;
+  $("#providerStatus").replaceChildren(...Object.values(ps).map(p => h("li", { class: p.found ? "found" : "" }, `${p.name} ${p.found ? p.version.replace(/\s*\(.*\)$/, "") : "ไม่พบในเครื่อง"}`)));
+  renderSessions(state.info.sessions);
+  render();
+}
+window.addEventListener("pywebviewready", boot);
+
+$("#recBtn").onclick = () => state.recording ? stopRec() : startRec();
+$("#pauseBtn").onclick = () => api().toggle_pause();
+
+async function startRec() {
+  if (!$("#provider").value) { alert("ไม่พบ Claude Code หรือ Codex ในเครื่อง ติดตั้งและ login ก่อน"); return; }
+  const r = await api().start_recording($("#monitor").value, $("#provider").value, $("#lang").value);
+  if (r.error) return alert(r.error);
+  state.recording = true; state.paused = false; state.t0 = Date.now(); state.elapsed = 0;
+  $("#recBtn").classList.add("on"); $("#pauseBtn").hidden = false; $("#recHint").textContent = "กำลังอัด… กดปุ่มอีกครั้งหรือ Ctrl+Alt+R เพื่อหยุด";
+}
+async function stopRec() {
+  stoppingUI();
+  finishRec(await api().stop_recording());
+}
+function stoppingUI() { $("#recHint").textContent = "กำลังบันทึกและตัดภาพ…"; $("#recBtn").disabled = true; }
+async function finishRec(s) {
+  state.recording = false; $("#recBtn").classList.remove("on"); $("#recBtn").disabled = false; $("#pauseBtn").hidden = true;
+  $("#recHint").textContent = "กดปุ่มแดงเพื่อเริ่มอัด แล้วทำงานให้จบ"; $("#timer").textContent = "00:00";
+  if (s.error) alert(s.error);
+  renderSessions(await api().list_sessions());
+  if (s.id) openSession(s.id);
+}
+setInterval(() => {
+  if (!state.recording) return;
+  if (!state.paused) { state.elapsed += 0.5; $("#timer").textContent = fmt(state.elapsed); }
+}, 500);
+
+window.onBackend = msg => {
+  if (msg.kind === "paused") { state.paused = msg.paused; $("#pauseBtn").textContent = msg.paused ? "อัดต่อ" : "พักการอัด"; $("#recHint").textContent = msg.paused ? "พักอยู่ ช่วงนี้ไม่ถูกอัด" : "กำลังอัด…"; }
+  else if (msg.kind === "hotkey_start") startRec();
+  else if (msg.kind === "stopping") stoppingUI();
+  else if (msg.kind === "stopped") finishRec(msg.session);
+  else if (msg.kind === "status") alert(msg.text);
+  else if (msg.kind === "progress" && state.job && state.job.id === msg.id) { state.job.secs = msg.secs; state.job.lines = msg.lines; renderProgress(); }
+  else if (msg.kind === "done") { state.job = null; api().list_sessions().then(renderSessions); if (state.current && state.current.id === msg.id) { state.current = msg.session; state.view = msg.session.status === "analyzed" ? "steps" : "skill"; render(); } }
+  else if (msg.kind === "failed") { state.job = null; render(); alert("AI ทำงานไม่สำเร็จ:\n" + msg.error); }
+};
+
+// ---------- sessions ----------
+function renderSessions(list) {
+  $("#count").textContent = list.length;
+  $("#sessions").replaceChildren(...list.map(s => h("div", { class: "sess" + (state.current && state.current.id === s.id ? " active" : ""), onclick: () => openSession(s.id) },
+    h("div", { class: "badge " + s.status }, STATUS[s.status] || s.status),
+    h("div", { class: "t" }, s.title),
+    h("div", { class: "muted" }, `${new Date(s.created * 1000).toLocaleString("th-TH")} · ${Math.round(s.duration)} วิ · ${s.size_mb} MB${s.steps ? " · " + s.steps + " steps" : ""}`),
+    h("button", { class: "icon del", title: "ลบ session นี้ (วิดีโอและภาพทั้งหมด)", onclick: async e => {
+      e.stopPropagation();
+      if (!confirm("ลบ session นี้ รวมวิดีโอ ภาพ และผลวิเคราะห์ทั้งหมด?")) return;
+      if (state.current && state.current.id === s.id) { state.current = null; render(); }
+      renderSessions(await api().delete_session(s.id));
+    } }, "×"))));
+}
+async function openSession(id) {
+  state.current = await api().get_session(id);
+  const st = state.current.status;
+  state.view = st === "recorded" || st === "failed" ? "review" : st === "analyzed" ? "steps" : "skill";
+  renderSessions(await api().list_sessions());
+  render();
+}
+
+// ---------- main views ----------
+function render() {
+  const m = $("#main");
+  const s = state.current;
+  if (!s) return m.replaceChildren(h("div", { class: "card" }, h("h3", {}, "เริ่มจากอัดงานที่อยากให้ AI ทำซ้ำ"),
+    h("ol", {}, h("li", {}, "เลือกจอและ AI ทางซ้าย แล้วกดปุ่มแดง"), h("li", {}, "ทำงานตามปกติจนเสร็จ หยุดนิ่งสักครู่ในหน้าสำคัญ"),
+      h("li", {}, "กดหยุด (หรือ Ctrl+Alt+R) แล้วตรวจภาพก่อนส่ง"), h("li", {}, "แก้ step → สร้าง skill → Export เป็น SKILL.md"))));
+  if (s.status === "failed") return m.replaceChildren(h("div", { class: "card" }, h("h3", {}, "บันทึกไม่สำเร็จ"), h("p", {}, s.error || ""), h("p", { class: "muted" }, "ลบ session นี้ได้จากรายการทางซ้าย")));
+  const tabs = h("div", { class: "tabs" },
+    h("button", { class: state.view === "review" ? "cur" : "", onclick: () => { state.view = "review"; render(); } }, "1 ตรวจภาพ"),
+    h("button", { class: state.view === "steps" ? "cur" : "", disabled: !s.analysis, onclick: () => { state.view = "steps"; render(); } }, "2 Steps"),
+    h("button", { class: state.view === "skill" ? "cur" : "", disabled: !s.skill, onclick: () => { state.view = "skill"; render(); } }, "3 Skill"));
+  const body = state.view === "steps" ? viewSteps(s) : state.view === "skill" ? viewSkill(s) : viewReview(s);
+  m.replaceChildren(tabs, body);
+  renderProgress();
+  requestAnimationFrame(() => document.querySelectorAll("main textarea").forEach(grow));
+}
+function grow(t) { t.style.height = "auto"; t.style.height = t.scrollHeight + 2 + "px"; }
+document.addEventListener("input", e => { if (e.target.tagName === "TEXTAREA") grow(e.target); });
+
+function renderProgress() {
+  const bar = $("#jobbar");
+  if (!bar) return;
+  if (!state.job || state.job.id !== state.current?.id) return bar.replaceChildren();
+  bar.replaceChildren(h("div", { class: "progress" }, h("div", { class: "spin" }),
+    h("span", {}, `${state.job.label}… ${fmt(state.job.secs || 0)} (อาจใช้หลายนาที)`),
+    h("button", { onclick: () => api().cancel(state.current.id) }, "ยกเลิก")));
+}
+
+async function runJob(kind) {
+  const s = state.current;
+  const r = kind === "analysis" ? await api().analyze(s.id) : await api().create_skill(s.id);
+  if (r.error) return alert(r.error);
+  state.job = { id: s.id, label: kind === "analysis" ? `AI กำลังดู ${r.frames} ภาพ` : "AI กำลังเขียน skill", secs: 0 };
+  render();
+}
+
+function viewReview(s) {
+  const sending = s.frames.filter(f => !f.excluded).length;
+  const org = PROVIDER_ORG[s.provider] || s.provider;
+  const tl = h("pre", {}, (s.timeline_preview || []).join("\n") || "(ไม่มี)");
+  const refresh = r => { tl.textContent = (r.timeline_preview || []).join("\n") || "(ไม่มี)"; };
+  const warn = h("div", { class: "warn" });
+  const setWarn = () => warn.replaceChildren(`ภาพที่เลือก ${s.frames.filter(f => !f.excluded).length}/${s.frames.length} ภาพ และข้อความ timeline ด้านล่าง จะถูกส่งให้ ${org} ผ่าน ${s.provider === "claude" ? "Claude Code" : "Codex"} ที่ login ไว้ในเครื่อง เอาภาพที่มีข้อมูลลับออกก่อนกดวิเคราะห์`);
+  setWarn();
+  return h("div", {},
+    h("h3", {}, "ตรวจภาพก่อนส่งให้ AI"),
+    h("p", { class: "muted" }, `${s.summary.duration.toFixed(0)} วินาที · ตัดได้ ${s.frames.length} ภาพ (ก่อนคลิกแต่ละครั้ง กรอบแดงคือจุดที่คลิก, ตอนสลับหน้าต่าง และช่วงที่ว่างนาน)`),
+    h("label", {}, "เป้าหมายของงานนี้ (ช่วยให้ AI เข้าใจถูก)",
+      h("textarea", { value: s.goal, placeholder: "เช่น รวมไฟล์ยอดขายทุกสาขาเป็นสรุปรายเดือน ไฟล์และจำนวนสาขาเปลี่ยนทุกเดือน", oninput: e => { s.goal = e.target.value; autosave({ goal: s.goal }); } })),
+    h("div", { class: "row" },
+      h("label", {}, "AI", h("select", { onchange: e => { s.provider = e.target.value; setWarn(); api().update(s.id, { provider: s.provider }); } },
+        ...Object.entries(state.info.providers).map(([k, p]) => h("option", { value: k, disabled: !p.found, selected: k === s.provider }, p.name)))),
+      h("label", {}, "ภาษาผลลัพธ์", h("select", { onchange: e => { s.lang = e.target.value; api().update(s.id, { lang: s.lang }); } },
+        h("option", { value: "th", selected: s.lang === "th" }, "ไทย"), h("option", { value: "en", selected: s.lang === "en" }, "English")))),
+    warn,
+    h("div", { class: "grid" }, s.frames.map(f => {
+      const card = h("div", { class: "frame" + (f.excluded ? " off" : "") },
+        frameImg(f.file),
+        h("div", {}, h("span", {}, `${f.t.toFixed(1)}s · ${{ click: "คลิก", window: "สลับหน้าต่าง", fill: "ระหว่างทาง", start: "เริ่ม", end: "จบ" }[f.kind] || f.kind}`),
+          h("label", { style: "margin:0;color:inherit" }, h("input", { type: "checkbox", checked: !f.excluded, style: "width:auto", onchange: async e => {
+            f.excluded = !e.target.checked; card.classList.toggle("off", f.excluded); setWarn();
+            refresh(await api().update(s.id, { frames: s.frames }));
+          } }), " ส่ง")));
+      return card;
+    })),
+    h("details", {}, h("summary", { class: "muted", style: "margin-top:14px;cursor:pointer" }, "ข้อความ timeline ที่จะส่ง (ชื่อหน้าต่างและเวลาคลิก)"), tl),
+    h("div", { class: "bar" }, h("div", { id: "jobbar" }),
+      h("button", { class: "primary", disabled: !!state.job, onclick: () => runJob("analysis") }, s.analysis ? "วิเคราะห์ใหม่" : "วิเคราะห์ →")));
+}
+
+function moveBtns(list, i, rerender, save) {
+  return h("div", { class: "tools" },
+    h("button", { class: "icon", title: "ขึ้น", disabled: i === 0, onclick: () => { [list[i - 1], list[i]] = [list[i], list[i - 1]]; save(); rerender(); } }, "↑"),
+    h("button", { class: "icon", title: "ลง", disabled: i === list.length - 1, onclick: () => { [list[i + 1], list[i]] = [list[i], list[i + 1]]; save(); rerender(); } }, "↓"),
+    h("button", { class: "icon", title: "ลบ", onclick: () => { list.splice(i, 1); save(); rerender(); } }, "×"));
+}
+const lines = arr => (arr || []).join("\n");
+const unlines = text => text.split("\n").map(x => x.trim()).filter(Boolean);
+
+function viewSteps(s) {
+  const a = s.analysis;
+  const save = () => autosave({ analysis: a });
+  const box = h("div");
+  const draw = () => box.replaceChildren(...a.steps.map((st, i) => h("div", { class: "card step" },
+    h("div", { class: "num" }, i + 1),
+    h("div", {},
+      h("input", { class: "title", value: st.title, oninput: e => { st.title = e.target.value; save(); } }),
+      h("textarea", { value: st.detail, oninput: e => { st.detail = e.target.value; save(); } }),
+      h("div", { class: "thumbs" }, (st.frames || []).filter(n => s.frames.some(f => f.file === n)).slice(0, 4).map(n => frameImg(n)),
+        h("span", { class: "tag" }, st.basis === "observed" ? "เห็นในภาพ" : "อนุมาน"))),
+    moveBtns(a.steps, i, draw, save))),
+    h("button", { onclick: () => { a.steps.push({ title: "", detail: "", frames: [], basis: "inferred" }); save(); draw(); } }, "+ เพิ่ม step"));
+  draw();
+  return h("div", {},
+    h("h2", {}, "สิ่งที่คุณทำ"),
+    h("input", { class: "title", style: "font-size:18px;font-weight:600", value: a.task_title, oninput: e => { a.task_title = e.target.value; save(); } }),
+    h("textarea", { value: a.summary, style: "margin-top:8px", oninput: e => { a.summary = e.target.value; save(); } }),
+    h("h2", { style: "margin-top:20px" }, "STEPS · คลิกเพื่อแก้ · เรียง เพิ่ม ลบได้ · บันทึกอัตโนมัติ"),
+    box,
+    h("label", {}, "สิ่งที่ยังไม่แน่ใจ (บรรทัดละข้อ จะกลายเป็นสมมติฐานใน skill)",
+      h("textarea", { value: lines(a.uncertainties), oninput: e => { a.uncertainties = unlines(e.target.value); save(); } })),
+    h("div", { class: "bar" }, h("div", { id: "jobbar" }),
+      h("button", { class: "primary", disabled: !!state.job || !a.steps.length, onclick: () => runJob("skill") }, s.skill ? "สร้าง skill ใหม่" : "สร้าง skill →")));
+}
+
+function viewSkill(s) {
+  const k = s.skill;
+  const save = () => autosave({ skill: k });
+  const field = (label, key, area) => h("label", {}, label, h(area ? "textarea" : "input", { value: k[key], oninput: e => { k[key] = e.target.value; save(); } }));
+  const listField = (label, key) => h("label", {}, label + " (บรรทัดละข้อ)", h("textarea", { value: lines(k[key]), oninput: e => { k[key] = unlines(e.target.value); save(); } }));
+  const inputs = h("div"), steps = h("div");
+  const drawInputs = () => inputs.replaceChildren(...k.inputs.map((it, i) => h("div", { class: "card step" }, h("div", { class: "num" }, "in"),
+    h("div", {}, h("div", { class: "row" }, h("input", { class: "title", value: it.name, placeholder: "ชื่อ input", oninput: e => { it.name = e.target.value; save(); } }),
+      h("input", { value: it.how_to_get, placeholder: "ได้ค่ามาอย่างไร", oninput: e => { it.how_to_get = e.target.value; save(); } })),
+      h("textarea", { value: it.description, placeholder: "คำอธิบาย", oninput: e => { it.description = e.target.value; save(); } })),
+    moveBtns(k.inputs, i, drawInputs, save))),
+    h("button", { onclick: () => { k.inputs.push({ name: "", description: "", how_to_get: "" }); save(); drawInputs(); } }, "+ เพิ่ม input"));
+  const drawSteps = () => steps.replaceChildren(...k.steps.map((st, i) => h("div", { class: "card step" }, h("div", { class: "num" }, i + 1),
+    h("div", {}, h("div", { class: "row" }, h("input", { class: "title", value: st.title, oninput: e => { st.title = e.target.value; save(); } }),
+      h("input", { value: st.tool, placeholder: "เครื่องมือ เช่น PowerShell", style: "max-width:200px", oninput: e => { st.tool = e.target.value; save(); } })),
+      h("textarea", { value: st.detail, oninput: e => { st.detail = e.target.value; save(); } })),
+    moveBtns(k.steps, i, drawSteps, save))),
+    h("button", { onclick: () => { k.steps.push({ title: "", detail: "", tool: "" }); save(); drawSteps(); } }, "+ เพิ่ม step"));
+  drawInputs(); drawSteps();
+  const done = h("span", { class: "muted" }, s.exported ? "Export แล้ว: " + s.exported : "");
+  return h("div", {},
+    h("h3", {}, "Skill ที่จะ export"),
+    h("div", { class: "row" }, field("name (ภาษาอังกฤษตัวเล็ก-ขีดกลาง)", "name"), h("div")),
+    field("description (ทำอะไร + Use when …)", "description", true),
+    h("h2", { style: "margin-top:18px" }, "INPUT ที่เปลี่ยนทุกครั้ง"), inputs,
+    listField("สิ่งที่ต้องมีก่อนเริ่ม", "prerequisites"),
+    h("h2", { style: "margin-top:18px" }, "STEPS"), steps,
+    field("ผลลัพธ์", "output", true),
+    listField("กรณีผิดพลาด", "errors"),
+    listField("สมมติฐานที่ต้องยืนยัน", "assumptions"),
+    h("div", { class: "bar" }, done, h("div", { id: "jobbar" }),
+      h("button", { class: "primary", disabled: !!state.job, onclick: async () => {
+        clearTimeout(saveTimer); await api().update(s.id, { skill: k });
+        const r = await api().export(s.id);
+        if (r.error) return alert(r.error);
+        if (r.path) { s.exported = r.path; done.replaceChildren("Export แล้ว: " + r.path + " ", h("button", { onclick: () => api().reveal(r.path) }, "เปิดโฟลเดอร์")); api().list_sessions().then(renderSessions); }
+      } }, "Export skill")));
+}
+</script>
+</body>
+</html>

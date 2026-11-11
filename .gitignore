@@ -1,0 +1,12 @@
+.venv/
+build/
+dist/
+__pycache__/
+*.spec
+try/
+.claude/
+claude-recording-to-skill-brief.md
+work/
+generated/
+*.mp4
+.impeccable/
